@@ -1,0 +1,148 @@
+`timescale 1ns / 1ps
+
+
+module vga_controller (
+    input clk,          
+    input rst,                
+    output reg video_on,        // on when within the active display area
+    output reg hsync,          
+    output reg vsync,          
+    output p_tick,              // pixel clock (25 MHz)
+    output reg [9:0] x,         // pixel x position (0-640)
+    output reg [9:0] y,         // pixel y position (0-480)
+    output reg [3:0] data_select // memory region selector
+);
+
+
+    // VGA display parameters (640x480 @ 60Hz)
+    parameter HD = 640;  // horizontal display area (pixels)
+    parameter HF = 48;   // horizontal front porch (pixels)
+    parameter HB = 16;   // horizontal back porch (pixels)
+    parameter HR = 96;   // horizontal retrace (pixels)
+    parameter HMAX = HD + HF + HB + HR - 1; // max value for horizontal counter
+
+
+    parameter VD = 480;  // vertical display area (lines)
+    parameter VF = 10;   // vertical front porch (lines)
+    parameter VB = 33;   // vertical back porch (lines)
+    parameter VR = 2;    // vertical retrace (lines)
+    parameter VMAX = VD + VF + VB + VR - 1; // max value for vertical counter
+
+
+    // Game-specific parameters (ship, aliens, bullets, etc.)
+    parameter SHIP_WIDTH = 30;
+    parameter SHIP_HEIGHT = 16;
+    parameter ALIEN_WIDTH = 30;
+    parameter ALIEN_HEIGHT = 30;
+    parameter BULLET_WIDTH = 4;
+    parameter BULLET_HEIGHT = 8;
+
+
+    // Register definitions for horizontal and vertical counters
+    reg [9:0] h_count_reg, h_count_next;
+    reg [9:0] v_count_reg, v_count_next;
+
+
+    // Clock divider for generating 25MHz pixel clock
+    reg [1:0] r_25MHz;
+    wire w_25MHz;
+    always @(posedge clk or posedge rst)
+        if (rst)
+            r_25MHz <= 0;
+        else
+            r_25MHz <= r_25MHz + 1;
+
+
+    assign w_25MHz = (r_25MHz == 0) ? 1 : 0;
+
+
+    // Horizontal and vertical counter logic
+    always @(posedge w_25MHz or posedge rst)
+        if (rst) begin
+            h_count_reg <= 0;
+            v_count_reg <= 0;
+        end else begin
+            h_count_reg <= h_count_next;
+            v_count_reg <= v_count_next;
+        end
+
+
+    // Horizontal and vertical counter behavior
+    always @(*) begin
+        if (h_count_reg == HMAX)
+            h_count_next = 0;
+        else
+            h_count_next = h_count_reg + 1;
+
+
+        if (h_count_reg == HMAX) begin
+            if (v_count_reg == VMAX)
+                v_count_next = 0;
+            else
+                v_count_next = v_count_reg + 1;
+        end else
+            v_count_next = v_count_reg;
+    end
+
+
+    // Generate sync signals and coordinates
+    always @(*) begin
+        // Horizontal sync signal logic
+        if (h_count_reg >= (HD + HF) && h_count_reg < (HD + HF + HR))
+            hsync = 0; // Horizontal sync pulse
+        else
+            hsync = 1;
+
+
+        // Vertical sync signal logic
+        if (v_count_reg >= (VD + VF) && v_count_reg < (VD + VF + VR))
+            vsync = 0; // Vertical sync pulse
+        else
+            vsync = 1;
+
+
+        // Coordinate assignment
+        x = (h_count_reg < HD) ? h_count_reg : 10'b0;
+        y = (v_count_reg < VD) ? v_count_reg : 10'b0;
+       
+        // Video on signal logic
+        if (h_count_reg < HD && v_count_reg < VD)
+            video_on = 1;
+        else
+            video_on = 0;
+    end
+
+
+    // Select memory region based on the game state and coordinates
+    always @(*) begin
+        if (h_count_reg < HD && v_count_reg < VD) begin
+            // Priority check: ship > rocket > aliens
+            if (x >= ship_x && x < ship_x + SHIP_WIDTH && y >= ship_y && y < ship_y + SHIP_HEIGHT) begin
+                data_select = 4'b0100; // Ship region
+            end else if (rocket_active && x >= rocket_x && x < rocket_x + BULLET_WIDTH && y >= rocket_y && y < rocket_y + BULLET_HEIGHT) begin
+                data_select = 4'b1001; // Rocket region
+            end else begin
+                // Check all aliens
+                data_select = 4'b0000; // Default to background
+                for (integer i = 0; i < 18; i = i + 1) begin
+                    if (alien_x[i] <= x && x < alien_x[i] + ALIEN_WIDTH && alien_y[i] <= y && y < alien_y[i] + ALIEN_HEIGHT) begin
+                        data_select = 4'b0101 + i; // Select corresponding alien region
+                    end
+                end
+            end
+        end else begin
+            // Default background when out of active screen area
+            data_select = 4'b0000;
+        end
+
+
+        // Game state check
+        case (game_state)
+            4'b0000: data_select = 4'b0000; // Start screen
+            4'b0001: data_select = 4'b0001; // Main screen
+            4'b0010: data_select = 4'b0010; // Win screen
+            4'b0011: data_select = 4'b0011; // Lose screen
+            default: data_select = 4'b0001; // Default screen
+        endcase
+    end
+endmodule
