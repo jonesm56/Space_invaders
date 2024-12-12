@@ -1,0 +1,140 @@
+import os
+from PIL import Image  # Requires "pip install pillow"
+
+
+def determine_dimensions(filename):
+    """
+    Determine the dimensions of the image based on the file name.
+    """
+    name = filename.lower()
+   
+    if "screen" in name:
+        return 180, 120  # Resize screens to 180x120 for MIF
+    elif "alien_1" in name:
+        return 16, 16  # Alien 1: 16x16
+    elif "alien_2" in name:
+        return 16, 22  # Alien 2: 16x22
+    elif "alien_3" in name:
+        return 16, 24  # Alien 3: 16x24
+    elif "laser" in name or "rocket" in name:
+        return 7, 3  # Projectiles (laser and rocket): 7x3
+    elif "spaceship" in name:
+        return 16, 30  # Spaceship: 16x30
+    elif "alien_explosion" in name:
+        return 16, 26  # Alien explosion: 16x26
+    elif "spaceship_explosion" in name:
+        return 16, 30  # Spaceship explosion: 16x30
+    elif "life" in name:
+        return 20, 30  # Life: 30x30
+    else:
+        raise ValueError(f"Unknown type for file: {filename}")
+
+
+def image_to_mif(image_path, mif_folder, width, height, transparent_value=0x000000):
+    """
+    Convert an image to a Memory Initialization File (MIF) in unsigned decimal addresses and hex pixel data.
+    """
+    # Open the image and ensure it's in RGBA mode for proper transparency handling
+    img = Image.open(image_path).convert("RGBA")
+
+
+    # Resize the image to the specified dimensions for MIF generation
+    img_resized = img.resize((width, height), Image.LANCZOS)
+   
+    # Process pixel data
+    rgba_data = img_resized.getdata()
+    pixel_data = []
+
+
+    for r, g, b, a in rgba_data:
+        if a == 0:  # If pixel is transparent (alpha == 0)
+            pixel_data.append(transparent_value)  # Set the value to transparent_value
+        else:
+            pixel_data.append((r << 16) | (g << 8) | b)  # RGB packed into 24 bits
+
+
+    # Generate output filename
+    file_name, _ = os.path.splitext(os.path.basename(image_path))
+    mif_path = os.path.join(mif_folder, f"{file_name}.mif")
+
+
+    # Ensure output folder exists
+    os.makedirs(mif_folder, exist_ok=True)
+
+
+    # Write MIF file
+    with open(mif_path, 'w') as mif_file:
+        mif_file.write(f"DEPTH = {len(pixel_data)};\n")  # DEPTH
+        mif_file.write("WIDTH = 24;\n")
+        mif_file.write("ADDRESS_RADIX = UNS;\n")  # Address radix UNS (unsigned decimal)
+        mif_file.write("DATA_RADIX = HEX;\n")    # Data radix HEX
+        mif_file.write("CONTENT BEGIN\n")
+       
+        # Write pixel data to MIF
+        for i, pixel in enumerate(pixel_data):
+            mif_file.write(f"{i} : {hex(pixel)[2:].zfill(6)};\n")  # Address in unsigned decimal, data in hex
+       
+        mif_file.write("END;\n")
+
+
+    return mif_path
+
+
+def save_resized_image(image_path, output_folder):
+    """
+    Save a resized version of the screen image (180x120) back to 640x480 for visual inspection.
+    """
+    img = Image.open(image_path).convert("RGBA")
+
+
+    # Resize to 180x120
+    img_resized = img.resize((180, 120), Image.LANCZOS)
+
+
+    # Resize back to 640x480
+    img_rescaled = img_resized.resize((640, 480), Image.NEAREST)
+
+
+    # Save the image to the output folder
+    file_name, _ = os.path.splitext(os.path.basename(image_path))
+    output_path = os.path.join(output_folder, f"{file_name}_rescaled.png")
+    os.makedirs(output_folder, exist_ok=True)
+    img_rescaled.save(output_path)
+
+
+    return output_path
+
+
+def convert_images_in_folder(folder_path, mif_folder, transparent_value=0x000000):
+    """
+    Convert all images in a folder to MIF files, resizing screens to save memory and generating rescaled visuals.
+    """
+    output_folder = os.path.join(mif_folder, "rescaled_images")
+
+
+    for filename in os.listdir(folder_path):
+        file_path = os.path.join(folder_path, filename)
+        if file_path.lower().endswith(('.png', '.jpg', '.jpeg')):  # Support for common image formats
+            try:
+                # Determine dimensions based on the file name
+                width, height = determine_dimensions(filename)
+               
+                if "screen" in filename.lower():
+                    # Special case for screens: Resize to 180x120 for MIF, then back to 640x480
+                    temp_width, temp_height = 180, 120
+                    image_to_mif(file_path, mif_folder, temp_width, temp_height, transparent_value)
+                    save_resized_image(file_path, output_folder)
+                    print(f"Processed {filename} at temporary resolution {temp_width}x{temp_height} for MIF and rescaled.")
+                else:
+                    # Process other images normally
+                    image_to_mif(file_path, mif_folder, width, height, transparent_value)
+                    print(f"Processed {filename} at resolution {width}x{height}.")
+            except ValueError as e:
+                print(e)
+
+
+# Example usage
+if __name__ == "__main__":
+    folder_path = r"C:\Users\drufr\Desktop\287 Project\Images & Sprites\screens"
+    mif_folder = r"C:\Users\drufr\Desktop\287 Project\Images & Sprites\screen mif"
+    convert_images_in_folder(folder_path, mif_folder)
