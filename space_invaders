@@ -1,0 +1,314 @@
+`timescale 1ns / 1ps
+
+
+
+
+module space_invaders (
+    input clk,  
+    input rst,        
+    input start,               // start button (key 3)
+    input left,                // left movement button (key 1)
+    input right,               // right movement button (key 0)
+    input fire,                // fire button (key 2)
+    output reg [3:0] game_state, // start, main, win, lose
+    output reg [7:0] score,    
+    output reg [3:0] lives,     // lives remaining
+    output reg [9:0] ship_x,    // ship x position
+    output reg [9:0] ship_y,    // ship y position
+    output reg [9:0] rocket_x,  // rocket x position
+    output reg [9:0] rocket_y,  // rocket y position
+    output reg rocket_active,   // rocket active flag
+    output reg [9:0] laser_x,  // laser x position
+    output reg [9:0] laser_y,  // laser y position
+    output reg laser_active,   // laser active flag
+    output reg [9:0] alien_x[0:17], // alien X positions
+    output reg [9:0] alien_y[0:17], // alien Y positions
+    output reg alien_active[0:17],   // alien active flag (for collision detection)
+    output reg [9:0] alien_bullet_x, // alien bullet x position
+    output reg [9:0] alien_bullet_y, // alien bullet y position
+    output reg alien_bullet_active, // alien bullet active flag
+    output reg [3:0] data_select,    // data select for memory region
+    input p_tick,               // pixel clock from vga controller
+    input [7:0] data_out        // memory data out
+);
+
+
+	 // Instantiate the blk_mem_gen module
+    blk_mem_gen mem_gen (
+        .clka(clk),
+        .addra(addr), // Example address, you should adjust based on your needs
+        .data_out(data_out),
+        .data_select(data_select)
+    );
+
+
+    // Instantiate the vga_controller module
+    vga_controller vga_ctrl (
+        .clk(clk),
+        .rst(rst),
+        .video_on(video_on),
+        .hsync(hsync),
+        .vsync(vsync),
+        .p_tick(p_tick),
+        .x(x),
+        .y(y),
+        .data_select(data_select)
+    );
+	 
+	 // Address calculation
+	 reg [9:0] addr; // dynamic memory address
+	 reg [9:0] x, y; // vga coordinates
+	 
+
+
+
+
+    // Randomly select an alien to shoot
+    reg [4:0] selected_alien;  // Selects one alien (0 to 17)
+    integer i;
+    reg can_shoot;  // Flag to indicate if an alien can shoot
+
+
+
+
+    // Alien sprite selection
+    reg [3:0] alien_sprite[0:17]; // Array for alien sprite IDs (1, 2, or 3)
+    reg [1:0] random_number;  // Random number for sprite selection (2-bits)
+
+
+
+
+    // Always reset the game state
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin
+            game_state <= 4'b0000; // Start screen
+            score <= 8'b0;
+            lives <= 4'b3;  // Initial lives
+            ship_x <= 320;  // Center of the screen
+            ship_y <= 440;  // Bottom of the screen
+            rocket_active <= 0; // No rocket initially
+            laser_active <= 0;  // No laser initially
+            alien_bullet_active <= 0; // No alien bullet initially
+           
+            // Initialize aliens (3 rows of 6)
+            for (i = 0; i < 18; i = i + 1) begin
+                alien_active[i] <= 1;  // Set aliens as active
+                alien_y[i] <= 50 + (i / 6) * 32;  // Row position
+                alien_x[i] <= 120 + (i % 6) * 50; // Column position
+                // Randomize alien sprite for each alien (using the random_number)
+                random_number <= $random % 4; // Generate a random number (0 to 3)
+                case (random_number)
+                    2'b00: alien_sprite[i] <= 4'b0101;  // Alien 1
+                    2'b01: alien_sprite[i] <= 4'b0110;  // Alien 2
+                    2'b10: alien_sprite[i] <= 4'b0111;  // Alien 3
+                    2'b11: alien_sprite[i] <= 4'b0101;  // Default Alien 1
+                    default: alien_sprite[i] <= 4'b0101; // Default Alien 1
+                endcase
+            end
+        end else begin
+            // Alien shooting logic (select random alien until a clear shot is found)
+            can_shoot = 0; // Assume the alien cant shoot
+           
+            // Keep picking random aliens until one has a clear path
+            while (!can_shoot) begin
+                selected_alien = $random % 18;  // Random value between 0 and 17
+
+
+
+
+                // Check if alien can shoot
+                if (alien_active[selected_alien]) begin
+                    can_shoot = 1;
+                    // Check for blocking aliens in the same column
+                    for (i = 0; i < 18; i = i + 1) begin
+                        if (alien_active[i] && alien_x[i] == alien_x[selected_alien] && alien_y[i] > alien_y[selected_alien]) begin
+                            can_shoot = 0;
+                        end
+                    end
+                end
+            end
+
+
+
+
+            // If a clear path is found fire a laser
+            if (can_shoot && !alien_bullet_active) begin
+                alien_bullet_x <= alien_x[selected_alien] + 14;
+                alien_bullet_y <= alien_y[selected_alien] + 30;  // Start just below the alien
+                alien_bullet_active <= 1;
+            end
+
+
+
+
+            // Alien bullet movement
+            if (alien_bullet_active) begin
+                alien_bullet_y <= alien_bullet_y + 5;  // Move down
+                if (alien_bullet_y >= ship_y && alien_bullet_x >= ship_x && alien_bullet_x < (ship_x + 30)) begin
+                    // Bullet hits the ship
+                    lives <= lives - 1;
+                    alien_bullet_active <= 0;  // Deactivate bullet
+                end else if (alien_bullet_y > 480) begin
+                    // Bullet goes off the screen
+                    alien_bullet_active <= 0;  // Deactivate bullet
+                end
+            end
+
+
+
+
+            // Update logic for game state
+            if (game_state == 4'b0001) begin  // Running state
+
+
+
+
+                // Ship movement logic
+                if (left && ship_x > 1) begin
+                    ship_x <= ship_x - 5; // Move left
+                end else if (right && ship_x < 640 - 31) begin
+                    ship_x <= ship_x + 5; // Move right
+                end
+
+
+
+
+                // Rocket movement and collision logic
+                if (rocket_active) begin
+                    rocket_y <= rocket_y - 5; // Move rocket upward
+
+
+
+
+                    // Check for collision with aliens
+                    for (i = 0; i < 18; i = i + 1) begin
+                        if (alien_active[i] && rocket_x >= alien_x[i] && rocket_x < (alien_x[i] + 32) && rocket_y >= alien_y[i] && rocket_y < (alien_y[i] + 32)) begin
+                            // Rocket hits alien
+                            alien_active[i] <= 0;  // Deactivate alien
+                            score <= score + 10;    // Increment score
+                            rocket_active <= 0;     // Deactivate rocket
+                        end
+                    end
+
+
+
+
+                    // If rocket goes off the screen, deactivate it
+                    if (rocket_y <= 0) begin
+                        rocket_active <= 0;  // Deactivate rocket
+                    end
+                end
+
+
+
+
+                // Alien movement logic (same as before)
+                reg alien_direction;  // Direction for aliens (0 = left, 1 = right)
+                reg hit_edge = 0;  // Flag to detect edge collision
+                always @(posedge clk or posedge rst) begin
+                    if (rst) begin
+                        alien_direction <= 1;  // Start moving right
+                    end else begin
+                        // Move aliens left and right
+                        for (i = 0; i < 18; i = i + 1) begin
+                            if (alien_active[i]) begin
+                                if (alien_direction) begin
+                                    alien_x[i] <= alien_x[i] + 5; // Move right
+                                end else begin
+                                    alien_x[i] <= alien_x[i] - 5; // Move left
+                                end
+                            end
+                        end
+
+
+
+
+                        // Check if any alien hits the screen edges
+                        for (i = 0; i < 18; i = i + 1) begin
+                            if (alien_active[i]) begin
+                                if (alien_x[i] >= 640 - 31 || alien_x[i] <= 0) begin
+                                    hit_edge = 1;
+                                end
+                            end
+                        end
+
+
+
+
+                        // If edge hit, reverse direction and drop down
+                        if (hit_edge) begin
+                            alien_direction <= ~alien_direction;  // Reverse direction
+                            for (i = 0; i < 18; i = i + 1) begin
+                                if (alien_active[i]) begin
+                                    alien_y[i] <= alien_y[i] + 22;  // Move down one row
+                                end
+                            end
+                        end
+
+
+
+
+                        // Check if any alien reaches the bottom
+                        for (i = 0; i < 18; i = i + 1) begin
+                            if (alien_active[i] && alien_y[i] >= 479) begin
+                                lives <= lives - 1;  // Decrease lives if alien hits the bottom
+                                alien_active[i] <= 0; // Deactivate alien
+                            end
+                        end
+                    end
+                end
+
+
+
+
+                // Check for game over (no lives left)
+                if (lives == 0) begin
+                    game_state <= 4'b0011;  // Lose state
+                end
+
+
+
+
+                // Check for win condition (all aliens destroyed)
+                if (score == 90) begin
+                    game_state <= 4'b0010;  // Win state
+                end
+
+
+
+
+                // Menu and Replay options
+                if (game_state == 4'b0010 && start) begin // Restart from win state
+                    game_state = 4'b0000; // Start Menu
+                end else if (game_state == 4'b0011) begin // Lose State
+                    if (fire) begin
+                        game_state = 4'b0001; // Running state
+                    end else if (start) begin
+                        game_state = 4'b0000; // Start Menu
+                    end
+                end
+            end
+        end
+    end
+
+
+
+
+    // Assign data_select for VGA display region based on game state
+    always @(*) begin
+        if (game_state == 4'b0000 && start) begin // Start screen
+            data_select = 4'b0001;  // press start to play
+				//addr
+        end else if (game_state == 4'b0001) begin // Main screen
+					data_select = 4'b0001;
+        end else if (game_state == 4'b0010) begin
+				if (start) begin
+				
+				end
+        end else if (game_state == 4'b0011) begin
+            data_select = 4'b0011;  // Lose screen
+        end else begin
+            data_select = 4'b0000;  // Default to start screen
+        end
+    end
+endmodule
