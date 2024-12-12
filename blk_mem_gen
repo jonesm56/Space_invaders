@@ -1,0 +1,62 @@
+module blk_mem_gen (
+    input clka,                // clock input
+    input [13:0] addra,        // address input
+    output reg [7:0] data_out, // data out from .mif file
+    input [3:0] data_select    // select region of .mif file to pull from
+);
+
+
+    // array to hold item data based on addresses it spans
+    reg [13:0] memory_array [0:7612];  // total memory size
+
+
+    // load single .mif file containing all sprites, backgrounds, etc.
+    initial begin
+        $readmemb("combined_memory.mif", memory_array);
+    end
+
+
+    // Address ranges for various memory regions (customized for this game)
+    parameter START_START = 6396;
+    parameter END_START = 7359;
+    parameter START_MAIN = 3808;
+    parameter END_MAIN = 4795;
+    parameter START_WIN = 7360;
+    parameter END_WIN = 8195;
+    parameter START_LOSE = 3792;
+    parameter END_LOSE = 3807;
+    parameter START_SHIP = 5528;
+    parameter END_SHIP = 6395;
+    parameter START_ALIEN1 = 0;
+    parameter END_ALIEN1 = 899;
+    parameter START_ALIEN2 = 900;
+    parameter END_ALIEN2 = 1799;
+    parameter START_ALIEN3 = 1800;
+    parameter END_ALIEN3 = 2683;
+    parameter START_LASER = 2684;
+    parameter END_LASER = 3791;
+    parameter START_ROCKET = 4796;
+    parameter END_ROCKET = 5527;
+    // Additional regions can be defined as needed...
+
+
+    // Read memory based on selected region and address input
+    always @(*) begin
+        data_out = 8'b0;  // Default to main screen
+
+
+        case (data_select)
+            4'b0000: data_out = memory_array[START_START + addra]; // Start screen
+            4'b0001: data_out = memory_array[START_MAIN + addra]; // Main screen
+            4'b0010: data_out = memory_array[START_WIN + addra]; // Win screen
+            4'b0011: data_out = memory_array[START_LOSE + addra]; // Lose screen
+            4'b0100: data_out = memory_array[START_SHIP + addra]; // Ship
+            4'b0101: data_out = memory_array[START_ALIEN1 + addra]; // Alien1
+            4'b0110: data_out = memory_array[START_ALIEN2 + addra]; // Alien2
+            4'b0111: data_out = memory_array[START_ALIEN3 + addra]; // Alien3
+            4'b1000: data_out = memory_array[START_LASER + addra]; // Laser
+            4'b1001: data_out = memory_array[START_ROCKET + addra]; // Rocket
+            default: data_out = memory_array[0 + addra]; // Default to background
+        endcase
+    end
+endmodule
