@@ -1,0 +1,88 @@
+import os
+
+
+def combine_mif_files(input_mif_folder, output_mif_path, transparent_value=0x000000):
+    combined_data = []
+    total_depth = 0
+    addresses = []  # To store the start and end address of each item
+    current_address = 0  # Tracks the current address as we combine data
+
+
+    for filename in os.listdir(input_mif_folder):
+        if filename.lower().endswith('.mif'):
+            file_path = os.path.join(input_mif_folder, filename)
+            with open(file_path, 'r') as mif_file:
+                lines = mif_file.readlines()
+
+
+                # Extract DEPTH and WIDTH information
+                depth = 0
+                width = 0
+                for line in lines:
+                    if line.startswith("DEPTH"):
+                        depth = int(line.split('=')[1].strip().strip(';'), 16)
+                    if line.startswith("WIDTH"):
+                        width = int(line.split('=')[1].strip().strip(';'))
+
+
+                content_start = False
+                content_lines = []
+                valid_pixel_data = []  # To store non-blank pixel data
+
+
+                # Parse the content, excluding blank pixels
+                for line in lines:
+                    if line.strip() == "CONTENT BEGIN":
+                        content_start = True
+                    elif line.strip() == "END;":
+                        content_start = False
+                    elif content_start:
+                        line_data = line.strip().split(' : ')[1].strip().strip(';')
+                        pixel_value = int(line_data, 16)
+                       
+                        # Only add non-blank (non-transparent) pixels
+                        if pixel_value != transparent_value:
+                            valid_pixel_data.append(line.strip())
+
+
+                # Calculate start and end addresses for the valid pixel data
+                start_address = current_address
+                end_address = current_address + len(valid_pixel_data) - 1
+                addresses.append((filename, start_address, end_address))
+
+
+                # Update the combined data with non-blank pixels
+                combined_data.extend(valid_pixel_data)
+                current_address += len(valid_pixel_data)  # Update address for next item
+
+
+    # Write the combined .mif file in unsigned decimal format
+    with open(output_mif_path, 'w') as output_file:
+        output_file.write(f"DEPTH = {len(combined_data)};\n")
+        output_file.write(f"WIDTH = 24;\n")
+        output_file.write("ADDRESS_RADIX = UNS;\n")  # Address radix UNS (unsigned decimal)
+        output_file.write("DATA_RADIX = HEX;\n")    # Data radix HEX
+        output_file.write("CONTENT BEGIN\n")
+
+
+        # Write the combined pixel data and their addresses in unsigned decimal format
+        for i, line in enumerate(combined_data):
+            data = line.split(' : ')[1].strip().strip(';')
+            output_file.write(f"{i} : {data};\n")  # Address in unsigned decimal, data in hex
+
+
+        output_file.write("END;\n")
+
+
+    print(f"Combined .mif file created at: {output_mif_path}")
+    print("\nAddress Coordinates for each item:")
+    for item in addresses:
+        print(f"Item: {item[0]} | Start Address: {item[1]} | End Address: {item[2]}")
+
+
+# Example usage
+input_folder = r"C:\Users\drufr\Desktop\287 Project\Images & Sprites\element mif"
+output_mif_path = r"C:\Users\drufr\Desktop\287 Project\Images & Sprites\elements.mif"
+combine_mif_files(input_folder, output_mif_path)
+
+
