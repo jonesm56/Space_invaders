@@ -1,0 +1,82 @@
+module clock_manager (
+    input wire clk_50mhz,      // 50MHz input clock
+    input wire reset,
+    output wire pixel_clk,     // 25MHz pixel clock
+    output wire game_clk,      // 100MHz game logic clock
+    output wire mem_clk,       // Memory clock
+    output reg pixel_locked,   // PLL lock indicators
+    output reg game_locked,
+    output reg mem_locked
+);
+
+    // Internal signals
+    wire pll_locked;
+    wire [2:0] clk_out;
+    reg [3:0] lock_count;
+    
+    // Clock crossing signals
+    reg [2:0] pixel_sync_reg;
+    reg [2:0] game_sync_reg;
+    reg [2:0] mem_sync_reg;
+    
+    // PLL instance
+    pll_main pll (
+        .inclk0(clk_50mhz),
+        .c0(clk_out[0]),    // 25MHz for VGA
+        .c1(clk_out[1]),    // 100MHz for game logic
+        .c2(clk_out[2]),    // Memory clock
+        .locked(pll_locked),
+        .areset(reset)
+    );
+    
+    // Clock outputs
+    assign pixel_clk = clk_out[0];
+    assign game_clk = clk_out[1];
+    assign mem_clk = clk_out[2];
+    
+    // Lock detection and synchronization
+    always @(posedge clk_50mhz or posedge reset) begin
+        if (reset) begin
+            lock_count <= 0;
+            pixel_locked <= 0;
+            game_locked <= 0;
+            mem_locked <= 0;
+        end else if (pll_locked) begin
+            if (lock_count < 4'hF)
+                lock_count <= lock_count + 1;
+            else begin
+                pixel_locked <= 1;
+                game_locked <= 1;
+                mem_locked <= 1;
+            end
+        end else begin
+            lock_count <= 0;
+            pixel_locked <= 0;
+            game_locked <= 0;
+            mem_locked <= 0;
+        end
+    end
+    
+    // Clock domain crossing synchronizers
+    always @(posedge pixel_clk or posedge reset) begin
+        if (reset)
+            pixel_sync_reg <= 0;
+        else
+            pixel_sync_reg <= {pixel_sync_reg[1:0], game_sync_reg[2]};
+    end
+    
+    always @(posedge game_clk or posedge reset) begin
+        if (reset)
+            game_sync_reg <= 0;
+        else
+            game_sync_reg <= {game_sync_reg[1:0], mem_sync_reg[2]};
+    end
+    
+    always @(posedge mem_clk or posedge reset) begin
+        if (reset)
+            mem_sync_reg <= 0;
+        else
+            mem_sync_reg <= {mem_sync_reg[1:0], pixel_sync_reg[2]};
+    end
+
+endmodule

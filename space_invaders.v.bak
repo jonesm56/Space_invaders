@@ -1,0 +1,82 @@
+module space_invaders (
+  input clk,                 // 50MHz input clock
+  input reset,               // reset button
+  input fire,                // fire button
+  input left,                // left button
+  input right,               // right button
+  output hsync,              // horizontal sync
+  output vsync,              // vertical sync
+  output [7:0] red,          // 8-bit red output
+  output [7:0] green,        // 8-bit green output
+  output [7:0] blue          // 8-bit blue output
+);
+
+  // Clock divider
+  wire pixel_clk;
+  clock_divider clk_div (.clk(clk), .divided_clk(pixel_clk));
+
+  // VGA controller
+  wire [9:0] x;
+  wire [9:0] y;
+  wire video_on;
+  vga_controller_640x480 vga_ctrl (
+    .clk(pixel_clk),
+    .reset(reset),
+    .hsync(hsync),
+    .vsync(vsync),
+    .x(x),
+    .y(y),
+    .video_on(video_on)
+  );
+
+  // Game state machine
+  wire [1:0] game_state;
+  game_fsm fsm (
+    .clk(pixel_clk),
+    .reset(reset),
+    // ... (state transition logic)
+    .state(game_state)
+  );
+
+  // Screen ROM
+  wire [7:0] screen_red, screen_green, screen_blue;
+  screen_rom screen (
+    .clk(pixel_clk),
+    .addr({game_state, y[8:0], x[9:0]}),
+    .red(screen_red),
+    .green(screen_green),
+    .blue(screen_blue)
+  );
+
+  // Sprite ROM
+  wire [7:0] sprite_red, sprite_green, sprite_blue;
+  sprite_rom sprite (
+    .clk(pixel_clk),
+    // ... (sprite rendering logic)
+    .red(sprite_red),
+    .green(sprite_green),
+    .blue(sprite_blue)
+  );
+
+  // Game logic
+  wire [7:0] game_red, game_green, game_blue;
+  game_logic logic (
+    .clk(pixel_clk),
+    .reset(reset),
+    .fire(fire),
+    .left(left),
+    .right(right),
+    .x(x),
+    .y(y),
+    // ... (collision detection, scoring, lives, etc.)
+    .red(game_red),
+    .green(game_green),
+    .blue(game_blue)
+  );
+
+  // Final pixel output
+  assign red = (video_on) ? game_red : 8'h0;
+  assign green = (video_on) ? game_green : 8'h0;
+  assign blue = (video_on) ? game_blue : 8'h0;
+
+endmodule

@@ -1,0 +1,108 @@
+module blk_mem_gen (
+    input wire clk,
+    input wire [15:0] screen_addr,  // Full 16-bit address for screen/sprite lookup
+    input wire [15:0] sprite_addr,  // Full 16-bit address for sprite lookup
+    output reg [7:0] red,
+    output reg [7:0] green,
+    output reg [7:0] blue
+);
+    // Memory for storing screen and sprite data
+    reg [23:0] screen_memory [0:307199]; // Full screen backgrounds
+    reg [23:0] sprite_memory [0:1023];   // Sprite memory
+
+    // Game states
+    parameter START_SCREEN = 2'b00;
+    parameter MAIN_SCREEN = 2'b01;
+    parameter WIN_SCREEN = 2'b10;
+    parameter LOSE_SCREEN = 2'b11;
+
+    // Sprite types
+    parameter SPACESHIP = 3'b000;
+    parameter ALIEN_1 = 3'b001;
+    parameter ALIEN_2 = 3'b010;
+    parameter ALIEN_3 = 3'b011;
+    parameter ROCKET = 3'b100;
+    parameter LASER = 3'b101;
+
+    // Initialize memories
+    initial begin
+        $readmemh("screens.mif", screen_memory);
+        $readmemh("sprites.mif", sprite_memory);
+    end
+
+    // Screen memory lookup
+    always @(posedge clk) begin
+        case (screen_addr[15:14])
+            START_SCREEN: begin
+                red <= screen_memory[{screen_addr[13:0]}][23:16];
+                green <= screen_memory[{screen_addr[13:0]}][15:8];
+                blue <= screen_memory[{screen_addr[13:0]}][7:0];
+            end
+            
+            MAIN_SCREEN: begin
+                red <= screen_memory[{2'b01, screen_addr[13:0]}][23:16];
+                green <= screen_memory[{2'b01, screen_addr[13:0]}][15:8];
+                blue <= screen_memory[{2'b01, screen_addr[13:0]}][7:0];
+            end
+            
+            WIN_SCREEN: begin
+                red <= screen_memory[{2'b10, screen_addr[13:0]}][23:16];
+                green <= screen_memory[{2'b10, screen_addr[13:0]}][15:8];
+                blue <= screen_memory[{2'b10, screen_addr[13:0]}][7:0];
+            end
+            
+            LOSE_SCREEN: begin
+                red <= screen_memory[{2'b11, screen_addr[13:0]}][23:16];
+                green <= screen_memory[{2'b11, screen_addr[13:0]}][15:8];
+                blue <= screen_memory[{2'b11, screen_addr[13:0]}][7:0];
+            end
+        endcase
+    end
+
+    // Sprite memory lookup
+    always @(posedge clk) begin
+        case (sprite_addr[13:11])
+            SPACESHIP: begin
+                red <= sprite_memory[{sprite_addr[10:5], sprite_addr[4:0]}][23:16];
+                green <= sprite_memory[{sprite_addr[10:5], sprite_addr[4:0]}][15:8];
+                blue <= sprite_memory[{sprite_addr[10:5], sprite_addr[4:0]}][7:0];
+            end
+            
+            ALIEN_1: begin
+                red <= sprite_memory[{1'b1, sprite_addr[10:5], sprite_addr[4:0]}][23:16];
+                green <= sprite_memory[{1'b1, sprite_addr[10:5], sprite_addr[4:0]}][15:8];
+                blue <= sprite_memory[{1'b1, sprite_addr[10:5], sprite_addr[4:0]}][7:0];
+            end
+            
+            ALIEN_2: begin
+                red <= sprite_memory[{1'b1, sprite_addr[10:5], sprite_addr[4:0]}][23:16];
+                green <= sprite_memory[{1'b1, sprite_addr[10:5], sprite_addr[4:0]}][15:8];
+                blue <= sprite_memory[{1'b1, sprite_addr[10:5], sprite_addr[4:0]}][7:0];
+            end
+            
+            ALIEN_3: begin
+                red <= sprite_memory[{1'b1, sprite_addr[10:5], sprite_addr[4:0]}][23:16];
+                green <= sprite_memory[{1'b1, sprite_addr[10:5], sprite_addr[4:0]}][15:8];
+                blue <= sprite_memory[{1'b1, sprite_addr[10:5], sprite_addr[4:0]}][7:0];
+            end
+            
+            ROCKET: begin
+                red <= sprite_memory[{sprite_addr[10:5], sprite_addr[4:0]}][23:16];
+                green <= sprite_memory[{sprite_addr[10:5], sprite_addr[4:0]}][15:8];
+                blue <= sprite_memory[{sprite_addr[10:5], sprite_addr[4:0]}][7:0];
+            end
+            
+            LASER: begin
+                red <= sprite_memory[{sprite_addr[10:5], sprite_addr[4:0]}][23:16];
+                green <= sprite_memory[{sprite_addr[10:5], sprite_addr[4:0]}][15:8];
+                blue <= sprite_memory[{sprite_addr[10:5], sprite_addr[4:0]}][7:0];
+            end
+            
+            default: begin
+                red <= 8'h00;
+                green <= 8'h00;
+                blue <= 8'h00;
+            end
+        endcase
+    end
+endmodule

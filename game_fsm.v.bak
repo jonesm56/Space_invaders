@@ -1,0 +1,22 @@
+module game_fsm (
+  input clk,
+  input reset,
+  // ... (state transition logic)
+  output reg [1:0] state
+);
+
+  // Game states
+  parameter START = 2'b00;
+  parameter MAIN = 2'b01;
+  parameter WIN = 2'b10;
+  parameter LOSE = 2'b11;
+
+  always @(posedge clk or posedge reset) begin
+    if (reset) begin
+      state <= START;
+    end else begin
+      // ... (state transition logic)
+    end
+  end
+
+endmodule

@@ -1,0 +1,15 @@
+module reset_synchronizer (
+    input clk,
+    input async_reset,    // Switch input (active high)
+    output reg sync_reset
+);
+
+    reg meta_reset;
+    
+    // Level-triggered reset synchronization
+    always @(posedge clk) begin
+        meta_reset <= async_reset;
+        sync_reset <= meta_reset;
+    end
+
+endmodule
