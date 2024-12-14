@@ -1,0 +1,70 @@
+// Sprite ROM for game objects
+module sprite_rom (
+    input wire [3:0] sprite_type,
+    input wire [1:0] frame,
+    input wire [5:0] row,
+    output reg [31:0] row_data
+);
+    // Sprite types
+    parameter SHIP = 4'd0;
+    parameter ALIEN1 = 4'd1;
+    parameter ALIEN2 = 4'd2;
+    parameter ALIEN3 = 4'd3;
+    parameter EXPLOSION = 4'd4;
+    parameter ROCKET = 4'd5;
+    parameter LASER = 4'd6;
+    parameter SHIELD = 4'd7;
+    
+    reg [31:0] sprite_patterns [0:511];  // 16 sprites * 32 rows
+    
+    initial begin
+        // Ship pattern
+        sprite_patterns[SHIP*32+0]  = 32'h00018000;
+        sprite_patterns[SHIP*32+1]  = 32'h0003C000;
+        sprite_patterns[SHIP*32+2]  = 32'h0003C000;
+        sprite_patterns[SHIP*32+3]  = 32'h0003C000;
+        sprite_patterns[SHIP*32+4]  = 32'h07FFFFE0;
+        sprite_patterns[SHIP*32+5]  = 32'h0FFFFFF0;
+        sprite_patterns[SHIP*32+6]  = 32'h0FFFFFF0;
+        sprite_patterns[SHIP*32+7]  = 32'h0FFFFFF0;
+        
+        // Alien type 1 - frame 1
+        sprite_patterns[ALIEN1*32+0]  = 32'h00111100;
+        sprite_patterns[ALIEN1*32+1]  = 32'h01111110;
+        sprite_patterns[ALIEN1*32+2]  = 32'h11111111;
+        sprite_patterns[ALIEN1*32+3]  = 32'h11011011;
+        sprite_patterns[ALIEN1*32+4]  = 32'h11111111;
+        sprite_patterns[ALIEN1*32+5]  = 32'h00100100;
+        sprite_patterns[ALIEN1*32+6]  = 32'h01011010;
+        sprite_patterns[ALIEN1*32+7]  = 32'h10100101;
+        
+        // Alien type 1 - frame 2
+        sprite_patterns[ALIEN1*32+8]  = 32'h00111100;
+        sprite_patterns[ALIEN1*32+9]  = 32'h01111110;
+        sprite_patterns[ALIEN1*32+10] = 32'h11111111;
+        sprite_patterns[ALIEN1*32+11] = 32'h11011011;
+        sprite_patterns[ALIEN1*32+12] = 32'h11111111;
+        sprite_patterns[ALIEN1*32+13] = 32'h01011010;
+        sprite_patterns[ALIEN1*32+14] = 32'h10100101;
+        sprite_patterns[ALIEN1*32+15] = 32'h00100100;
+        
+        // Additional patterns for other sprites...
+    end
+    
+    reg [31:0] pattern;
+    
+    always @* begin
+        case (sprite_type)
+            SHIP: pattern = sprite_patterns[SHIP*32 + row];
+            ALIEN1: pattern = sprite_patterns[ALIEN1*32 + {frame, row[3:0]}];
+            ALIEN2: pattern = sprite_patterns[ALIEN2*32 + {frame, row[3:0]}];
+            ALIEN3: pattern = sprite_patterns[ALIEN3*32 + {frame, row[3:0]}];
+            EXPLOSION: pattern = sprite_patterns[EXPLOSION*32 + row];
+            ROCKET: pattern = sprite_patterns[ROCKET*32 + row];
+            LASER: pattern = sprite_patterns[LASER*32 + row];
+            SHIELD: pattern = sprite_patterns[SHIELD*32 + row];
+            default: pattern = 32'h0;
+        endcase
+        row_data = pattern;
+    end
+endmodule

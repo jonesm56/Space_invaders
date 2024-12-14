@@ -1,0 +1,22 @@
+// Simplified PLL module
+module pll_simple (
+    input wire refclk,
+    input wire rst,
+    output wire outclk_0,  // 25MHz for VGA
+    output wire outclk_1,  // 50MHz for game logic
+    output wire locked
+);
+    // Clock divider for 25MHz
+    reg [0:0] vga_clk_div;
+    
+    always @(posedge refclk or posedge rst) begin
+        if (rst)
+            vga_clk_div <= 0;
+        else
+            vga_clk_div <= ~vga_clk_div;
+    end
+    
+    assign outclk_0 = vga_clk_div;  // 25MHz
+    assign outclk_1 = refclk;       // 50MHz
+    assign locked = ~rst;
+endmodule
